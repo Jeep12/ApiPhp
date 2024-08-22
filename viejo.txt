@@ -1,0 +1,55 @@
+  public function resendEmailVerification()
+    {
+        $customHeader = $_SERVER['HTTP_X_CUSTOM_HEADER'] ?? null;
+        $jwt = $customHeader ? str_replace('Bearer ', '', $customHeader) : null;
+
+        $data = $this->get_data();
+        $email = $data->email ?? null;
+
+        if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->view->response(['message' => 'Email is required or invalid'], 400);
+            return;
+        }
+        $user = $this->modelUsers->getUserByEmail($email);
+
+        if (!$user) {
+            $this->view->response(['message' => 'User not found'], 404);
+            return;
+        }
+        // Validar el JWT
+        if ($jwt && $this->jwtMiddleware->validateJWT($jwt)) {
+
+
+            // Verificar el tiempo desde el último envío
+            $lastSentTimestamp = $this->getCache($email);
+            $currentTimestamp = time();
+            $interval = 15 * 60; // 15 minutos en segundos
+
+            if ($lastSentTimestamp && ($currentTimestamp - $lastSentTimestamp) < $interval) {
+                $remainingTime = $interval - ($currentTimestamp - $lastSentTimestamp);
+                $this->view->response([
+                    'message' => 'Please wait before requesting another verification email.',
+                    'retry_after' => $remainingTime
+                ], 429);
+                return;
+            }
+
+            // Generar nuevo token de verificación
+            $tokenVerification = $this->jwtMiddleware->generateJWTVerification($email);
+            $this->modelUsers->updateUserVerificationToken($user->id, $tokenVerification);
+
+            // Enviar el correo de verificación
+            $emailSent = $this->modelUsers->sendVerificationEmail($email, $tokenVerification);
+
+            // Actualizar la caché con el nuevo timestamp
+            $this->setCache($email, $currentTimestamp);
+
+            // Responder éxito
+            $this->view->response([
+                'message' => 'Verification email sent successfully.',
+                'email_sent' => $emailSent
+            ], 200);
+        } else {
+            $this->view->response(['message' => 'Invalid or missing JWT'], 401);
+        }
+    }

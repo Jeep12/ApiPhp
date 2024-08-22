@@ -1,0 +1,15 @@
+{
+    "require": {
+        "firebase/php-jwt": "^6.10",
+        "phpmailer/phpmailer": "^6.9",
+        "google/apiclient": "*",
+        "kreait/firebase-php": "^5.26",
+        "kreait/firebase-tokens": "^1.17",
+        "twilio/sdk": "^8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "api/utils/"
+        }
+    }
+}
